@@ -722,7 +722,7 @@
 
       // Simular retraso de red para demostración (eliminar en producción)
       setTimeout(() => {
-        fetch('http://localhost:5000/compute_mis', {
+        fetch('https://TU-BACKEND.onrender.com/compute_mis', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
