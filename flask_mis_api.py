@@ -3,11 +3,10 @@ import networkx as nx
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Habilita CORS para que pueda ser consumido desde el frontend
+CORS(app)  # Habilita CORS para que pueda ser consumido desde el frontend :)
 
 
 def compute_mis_outerplanar(G):
-    """Calcula el MIS usando un enfoque recursivo sobre grafos outerplanar."""
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
