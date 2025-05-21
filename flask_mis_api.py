@@ -1,26 +1,24 @@
-# Importamos las librerías necesarias
-from flask import Flask, request, jsonify  # Flask para crear la API web
-import networkx as nx                     # NetworkX para trabajar con grafos
-from flask_cors import CORS               # CORS permite acceso desde el frontend aunque esté en otro dominio
+from flask import Flask, request, jsonify
+import networkx as nx
+from flask_cors import CORS
 
 # Inicializamos la aplicación Flask
 app = Flask(__name__)
-CORS(app)  # Habilitamos CORS para permitir que el frontend pueda comunicarse con esta API
+CORS(app)  # Habilita CORS para permitir peticiones desde el frontend (por ejemplo, React, Vue, etc.)
 
-# Función principal para calcular el MIS en grafos outerplanar
+# Esta función calcula el Máximo Conjunto Independiente (MIS) para un grafo outerplanar
 def compute_mis_outerplanar(G):
-
-    # Subfunción optimizada para grafos que son árboles
+    # Subfunción para calcular el MIS de un árbol usando programación dinámica
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
 
-        root = next(iter(G.nodes()))
-        parent = {root: None}
+        root = next(iter(G.nodes()))  # Seleccionamos un nodo arbitrario como raíz
+        parent = {root: None}         # Diccionario para rastrear el padre de cada nodo
         visited = set()
         stack = [root]
 
-        # DFS para construir relaciones padre-hijo
+        # Construimos el árbol padre-hijo para usar en programación dinámica
         while stack:
             u = stack.pop()
             if u not in visited:
@@ -30,26 +28,26 @@ def compute_mis_outerplanar(G):
                         parent[v] = u
                         stack.append(v)
 
+        # Obtenemos los nodos en postorden (del fondo a la raíz)
         post_order = list(nx.dfs_postorder_nodes(G, root))
-        dp_include = {}  # Valor al incluir el nodo
-        dp_exclude = {}  # Valor al excluir el nodo
+        dp_include = {}  # Si incluimos el nodo u en el MIS
+        dp_exclude = {}  # Si no lo incluimos
 
-        # Programación dinámica desde hojas hacia la raíz
+        # Fase de cálculo DP: para cada nodo calculamos ambos casos
         for u in post_order:
             children = [v for v in G.neighbors(u) if v != parent[u]]
-            include_u = 1 + sum(dp_exclude.get(v, 0) for v in children)
-            exclude_u = sum(max(dp_include.get(v, 0), dp_exclude.get(v, 0)) for v in children)
+            include_u = 1 + sum(dp_exclude.get(v, 0) for v in children)  # u está en el MIS => hijos no pueden estar
+            exclude_u = sum(max(dp_include.get(v, 0), dp_exclude.get(v, 0)) for v in children)  # u no está => hijos pueden o no
             dp_include[u] = include_u
             dp_exclude[u] = exclude_u
 
+        # Reconstruimos la solución óptima usando los diccionarios
         mis = []
-        stack = [(root, dp_include[root] > dp_exclude[root])]
-
-        # Reconstrucción del conjunto MIS
+        stack = [(root, dp_include[root] > dp_exclude[root])]  # Decidimos si tomamos o no la raíz
         while stack:
             u, take = stack.pop()
             if take:
-                mis.append(u)
+                mis.append(u)  # Si tomamos el nodo, no tomamos a sus hijos
                 for v in G.neighbors(u):
                     if v != parent.get(u, None):
                         stack.append((v, False))
@@ -57,60 +55,59 @@ def compute_mis_outerplanar(G):
                 for v in G.neighbors(u):
                     if v != parent.get(u, None):
                         stack.append((v, dp_include[v] > dp_exclude[v]))
-
         return mis
 
-    # Caso base: grafo vacío
+    # Si el grafo está vacío, no hay nodos en el MIS
     if len(G.nodes()) == 0:
         return []
 
-    # Si es un árbol, usamos la función optimizada
+    # Si el grafo es un árbol (sin ciclos), usamos la versión optimizada
     if nx.is_tree(G):
         return compute_mis_tree(G)
 
-    # Caso general con ciclo: dividir y conquistar
+    # En caso contrario, buscamos ciclos
     cycle_basis = nx.cycle_basis(G)
+
+    # Si no hay ciclos, también es un árbol
     if not cycle_basis:
         return compute_mis_tree(G)
 
+    # Tomamos un ciclo como base para dividir el problema
     cycle = cycle_basis[0]
-    v = cycle[0]
+    v = cycle[0]  # Seleccionamos un nodo del ciclo
 
+    # Caso 1: no incluimos el nodo v
     G1 = G.copy()
     G1.remove_node(v)
     mis_without_v = compute_mis_outerplanar(G1)
 
+    # Caso 2: incluimos el nodo v, así que quitamos v y sus vecinos
     G2 = G.copy()
     neighbors = list(G.neighbors(v)) + [v]
     G2.remove_nodes_from(neighbors)
     mis_with_v = [v] + compute_mis_outerplanar(G2)
 
+    # Elegimos la solución con más nodos
     return max(mis_without_v, mis_with_v, key=len)
 
-
-# Endpoint para recibir un grafo y calcular su MIS si es outerplanar
+# Ruta de la API donde el frontend envía un grafo y recibe el MIS calculado
 @app.route('/compute_mis', methods=['POST'])
 def compute_mis():
-    data = request.get_json()  # Recibimos datos en formato JSON
-    nodes = data.get('nodes', [])
-    edges = data.get('edges', [])
+    data = request.get_json()  # Leemos el JSON enviado desde el cliente
+    nodes = data.get('nodes', [])  # Lista de nodos
+    edges = data.get('edges', [])  # Lista de aristas
 
+    # Creamos el grafo usando NetworkX
     G = nx.Graph()
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
-    # Validamos que sea un grafo outerplanar
-    is_planar, embedding = nx.check_planarity(G)
-    if not is_planar or len(embedding.faces()) > 1:
-        return jsonify({
-            'error': 'El grafo no es outerplanar. El algoritmo solo puede aplicarse a grafos outerplanar.'
-        }), 400  # Devolvemos código de error 400 (Bad Request)
-
-    # Calculamos el MIS si pasa la validación
+    # Calculamos el MIS usando el algoritmo principal
     mis = compute_mis_outerplanar(G)
+
+    # Devolvemos el resultado como JSON
     return jsonify({'mis': mis})
 
-
-# Ejecutamos el servidor Flask si se ejecuta directamente este archivo
+# Ejecutamos el servidor si este archivo se corre directamente
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)  # El servidor escucha en el puerto 10000
+    app.run(host='0.0.0.0', port=10000)  # El servidor correrá en http://localhost:10000/
