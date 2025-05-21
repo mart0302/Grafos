@@ -524,7 +524,7 @@
     let network = null;
     let lastMIS = [];
     
-    // Inicializar la red con configuración mejorada
+    // Inicializa la red 
     function initNetwork() {
       const container = document.getElementById('network');
       const data = { nodes, edges };
@@ -619,7 +619,7 @@
         document.getElementById('nodeInfo').style.display = 'none';
       });
       
-      // Actualizar posición del tooltip al mover el mouse
+      // Actualiza la posición del tooltip al mover el mouse
       container.addEventListener('mousemove', function(e) {
         const nodeInfo = document.getElementById('nodeInfo');
         if (nodeInfo.style.display !== 'none') {
@@ -629,7 +629,7 @@
       });
     }
     
-    // Generar un grafo outerplanar aleatorio
+    // Genera un grafo outerplanar aleatorio
     function generateGraph() {
       const n = parseInt(document.getElementById('nodeCount').value);
       const complexity = parseFloat(document.getElementById('graphComplexity').value);
@@ -637,7 +637,7 @@
       nodes.clear();
       edges.clear();
       
-      // Crear ciclo exterior
+      // Crea ciclo exterior
       for (let i = 0; i < n; i++) {
         nodes.add({ 
           id: i, 
@@ -649,24 +649,24 @@
         edges.add({ from: i, to: (i + 1) % n });
       }
       
-      // Añadir aristas internas basadas en la complejidad
+      // Añade aristas basadas en la complejidad
       for (let i = 0; i < n; i++) {
         for (let j = i + 2; j < n; j++) {
-          // Evitar crear aristas que crucen el centro
+          // Evita crear aristas que crucen el centro
           if (Math.random() < complexity && !wouldCross(i, j, edges.get())) {
             edges.add({ from: i, to: j });
           }
         }
       }
       
-      // Actualizar estadísticas
+      // Actualiza estadísticas
       updateStats();
       
       document.getElementById("misResult").innerHTML = '<i class="fas fa-info-circle"></i> MIS no calculado aún.';
       document.getElementById("misExplanation").style.display = 'none';
       lastMIS = [];
       
-      // Inicializar la red si no está inicializada
+      // Inicializa la red si no está inicializada
       if (!network) {
         initNetwork();
       } else {
@@ -674,16 +674,16 @@
       }
     }
     
-    // Verificar si una arista nueva cruzaría aristas existentes
+    // Verifica si una arista nueva cruzaría aristas existentes
     function wouldCross(from, to, existingEdges) {
-      // Simplificación: en outerplanar, evitamos aristas que crucen el centro
+      // evita que aristas que crucen el centro
       const n = nodes.length;
       const distance = Math.min((to - from + n) % n, (from - to + n) % n);
       
       return distance > n / 2;
     }
     
-    // Actualizar estadísticas del grafo
+    // Actualiza estadísticas del grafo
     function updateStats() {
       const nodeCount = nodes.length;
       const edgeCount = edges.length;
@@ -703,14 +703,14 @@
       }
     }
     
-    // Enviar grafo al backend para calcular MIS
+    // Envia el grafo al backend para calcular MIS
     function sendGraphToBackend() {
       const misBtn = document.getElementById("misBtn");
       const loading = document.getElementById("loading");
       misBtn.disabled = true;
       loading.style.display = 'block';
       
-      // Resetear colores de nodos
+      // Resetea colores de nodos
       nodes.forEach(node => {
         nodes.update({ id: node.id, color: '#97C2FC' });
       });
@@ -720,7 +720,7 @@
         edges: edges.get().map(e => [e.from, e.to])
       };
 
-      // Simular retraso de red para demostración (eliminar en producción)
+    
       setTimeout(() => {
         fetch('https://grafos-18xd.onrender.com/compute_mis', {
           method: 'POST',
@@ -747,7 +747,7 @@
                 size: 30
               });
               
-              // Crear efecto de confeti para el último nodo
+              // Crear efecto de confeti para el último nodo :)
               if (index === mis.length - 1) {
                 createConfettiEffect(nodeId);
               }
@@ -770,7 +770,6 @@
           `;
           document.getElementById("misExplanation").style.display = 'block';
           
-          // Actualizar estadísticas
           updateStats();
         })
         .catch(err => {
@@ -784,10 +783,10 @@
           misBtn.disabled = false;
           loading.style.display = 'none';
         });
-      }, 500); // Eliminar este setTimeout en producción
+      }, 500); 
     }
     
-    // Crear efecto de confeti para celebrar el cálculo del MIS
+    // Crea efecto de confeti para celebrar el cálculo del MIS :D
     function createConfettiEffect(nodeId) {
       const container = document.getElementById('network');
       const positions = network.getPositions([nodeId]);
@@ -814,7 +813,7 @@
         
         const animate = () => {
           posX += x;
-          posY += y + 0.5; // Gravedad
+          posY += y + 0.5; 
           opacity -= 0.02;
           scale -= 0.01;
           
