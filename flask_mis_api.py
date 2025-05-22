@@ -3,10 +3,13 @@ from flask_cors import CORS
 import networkx as nx
 
 app = Flask(__name__)
-CORS(app)  # Permite llamadas desde el frontend (JavaScript externo)
+CORS(app)  # Permite llamadas desde el frontend
 
-# --- Algoritmo para calcular MIS (Máximo Conjunto Independiente) en outerplanar ---
+# ---------------------- MIS para outerplanar ----------------------
+
 def compute_mis_outerplanar(G):
+    """Calcula el Máximo Conjunto Independiente (MIS) para grafos outerplanar."""
+
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
@@ -47,27 +50,34 @@ def compute_mis_outerplanar(G):
                 for v in G.neighbors(u):
                     if v != parent.get(u, None):
                         stack.append((v, dp_include[v] > dp_exclude[v]))
+
         return mis
 
     if len(G.nodes()) == 0:
         return []
+
     if nx.is_tree(G):
         return compute_mis_tree(G)
+
     cycle_basis = nx.cycle_basis(G)
     if not cycle_basis:
         return compute_mis_tree(G)
 
     cycle = cycle_basis[0]
     v = cycle[0]
+
     G1 = G.copy()
     G1.remove_node(v)
     mis1 = compute_mis_outerplanar(G1)
+
     G2 = G.copy()
     G2.remove_nodes_from([v] + list(G.neighbors(v)))
     mis2 = [v] + compute_mis_outerplanar(G2)
+
     return max(mis1, mis2, key=len)
 
-# --- Ruta principal para calcular el MIS ---
+# ---------------------- Ruta principal ----------------------
+
 @app.route('/compute_mis', methods=['POST'])
 def compute_mis():
     data = request.get_json()
@@ -79,10 +89,9 @@ def compute_mis():
     G.add_edges_from(edges)
 
     try:
-        # Validación outerplanar real con embebido
         _, embedding = nx.check_planarity(G)
-if not embedding.is_outerplanar():
-    return jsonify({'error': 'El grafo no es outerplanar'}), 400
+        if not embedding.is_outerplanar():
+            return jsonify({'error': 'El grafo no es outerplanar'}), 400
     except Exception as e:
         print("Error al validar outerplanaridad:", str(e))
         return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
@@ -90,5 +99,8 @@ if not embedding.is_outerplanar():
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
 
+# ---------------------- Main ----------------------
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
+
