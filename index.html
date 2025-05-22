@@ -719,7 +719,7 @@ function sendGraphToBackend() {
   };
 
   setTimeout(() => {
-    fetch('http://localhost:10000/compute_mis', {
+    fetch('https://grafos-18xd.onrender.com/compute_mis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
