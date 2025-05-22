@@ -703,88 +703,98 @@
       }
     }
     
-    // Envia el grafo al backend para calcular MIS
-    function sendGraphToBackend() {
-      const misBtn = document.getElementById("misBtn");
-      const loading = document.getElementById("loading");
-      misBtn.disabled = true;
-      loading.style.display = 'block';
+function sendGraphToBackend() {
+  const misBtn = document.getElementById("misBtn");
+  const loading = document.getElementById("loading");
+  misBtn.disabled = true;
+  loading.style.display = 'block';
+  
+  nodes.forEach(node => {
+    nodes.update({ id: node.id, color: '#97C2FC', shape: 'dot', size: 25 });
+  });
+
+  const payload = {
+    nodes: nodes.getIds(),
+    edges: edges.get().map(e => [e.from, e.to])
+  };
+
+  setTimeout(() => {
+    fetch('http://localhost:10000/compute_mis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(res => {
+      if (!res.ok) {
+        return res.json().then(err => { throw new Error(err.error || 'Error en la respuesta del servidor'); });
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
       
-      // Resetea colores de nodos
-      nodes.forEach(node => {
-        nodes.update({ id: node.id, color: '#97C2FC' });
-      });
-
-      const payload = {
-        nodes: nodes.getIds(),
-        edges: edges.get().map(e => [e.from, e.to])
-      };
-
-    
-      setTimeout(() => {
-        fetch('https://grafos-18xd.onrender.com/compute_mis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-        .then(res => {
-          if (!res.ok) throw new Error('Error en la respuesta del servidor');
-          return res.json();
-        })
-        .then(data => {
-          if (!data.mis) throw new Error('Formato de respuesta inválido');
-          
-          const mis = data.mis;
-          lastMIS = mis;
-          
-          // Resaltar nodos del MIS con animación
-          mis.forEach((nodeId, index) => {
-            setTimeout(() => {
-              nodes.update({ 
-                id: nodeId, 
-                color: '#FF6B6B',
-                shape: 'star',
-                size: 30
-              });
-              
-              // Crear efecto de confeti para el último nodo :)
-              if (index === mis.length - 1) {
-                createConfettiEffect(nodeId);
-              }
-            }, index * 100);
+      if (!data.mis) throw new Error('Formato de respuesta inválido');
+      
+      const mis = data.mis;
+      lastMIS = mis;
+      
+      mis.forEach((nodeId, index) => {
+        setTimeout(() => {
+          nodes.update({ 
+            id: nodeId, 
+            color: '#FF6B6B',
+            shape: 'star',
+            size: 30
           });
           
-          const misSize = mis.length;
-          const totalNodes = nodes.length;
-          const percentage = Math.round((misSize / totalNodes) * 100);
-          
-          document.getElementById("misResult").innerHTML = `
-            <i class="fas fa-check-circle" style="color: var(--color-exito)"></i> 
-            MIS calculado con ${misSize} nodos (${percentage}% del grafo): [${mis.join(', ')}]
-          `;
-          
-          document.getElementById("misExplanation").innerHTML = `
-            <p>El <strong>Máximo Conjunto Independiente</strong> (MIS) se refiere al grupo más grande posible de nodos que <strong>no están conectados entre sí</strong>.</p>
-            <p>En este grafo, el MIS representa el <strong>${percentage}%</strong> de todos los nodos. Esto significa que puedes seleccionar hasta <strong>${misSize}</strong> elementos sin que ninguno esté relacionado directamente.</p>
-            <p><strong>Aplicación práctica:</strong> Imagina que cada nodo es una estación de radio. El MIS te dice cuántas estaciones puedes tener activas simultáneamente sin interferencias.</p>
-          `;
-          document.getElementById("misExplanation").style.display = 'block';
-          
-          updateStats();
-        })
-        .catch(err => {
-          console.error('Error:', err);
-          document.getElementById("misResult").innerHTML = `
-            <i class="fas fa-exclamation-triangle" style="color: var(--color-error)"></i> 
-            Error al calcular MIS: ${err.message}
-          `;
-        })
-        .finally(() => {
-          misBtn.disabled = false;
-          loading.style.display = 'none';
-        });
-      }, 500); 
-    }
+          if (index === mis.length - 1) {
+            createConfettiEffect(nodeId);
+          }
+        }, index * 100);
+      });
+      
+      const misSize = mis.length;
+      const totalNodes = nodes.length;
+      const percentage = Math.round((misSize / totalNodes) * 100);
+      
+      document.getElementById("misResult").innerHTML = `
+        <i class="fas fa-check-circle" style="color: var(--color-exito)"></i> 
+        MIS calculado con ${misSize} nodos (${percentage}% del grafo): [${mis.join(', ')}]
+      `;
+      
+      document.getElementById("misExplanation").innerHTML = `
+        <p>El grafo <strong>es outerplanar</strong> y el algoritmo ha encontrado el <strong>Máximo Conjunto Independiente</strong>.</p>
+        <p>El MIS contiene <strong>${misSize}</strong> nodos (${percentage}% del total).</p>
+      `;
+      document.getElementById("misExplanation").style.display = 'block';
+      
+      updateStats();
+    })
+    .catch(err => {
+      console.error('Error:', err);
+      document.getElementById("misResult").innerHTML = `
+        <i class="fas fa-exclamation-triangle" style="color: var(--color-error)"></i> 
+        ${err.message}
+      `;
+      document.getElementById("misExplanation").innerHTML = `
+        <p>El grafo proporcionado <strong>no cumple con las condiciones de outerplanaridad</strong>.</p>
+        <p>Por favor, genera un nuevo grafo o verifica que:</p>
+        <ul>
+          <li>El grafo sea plano (sin aristas que se crucen)</li>
+          <li>Todos los nodos puedan colocarse en la cara exterior</li>
+          <li>No contenga subgrafos K₄ o K₂,₃</li>
+        </ul>
+      `;
+      document.getElementById("misExplanation").style.display = 'block';
+    })
+    .finally(() => {
+      misBtn.disabled = false;
+      loading.style.display = 'none';
+    });
+  }, 500);
+}
     
     // Crea efecto de confeti para celebrar el cálculo del MIS :D
     function createConfettiEffect(nodeId) {
