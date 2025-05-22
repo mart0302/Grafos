@@ -1,72 +1,68 @@
 from flask import Flask, request, jsonify
 import networkx as nx
 from flask_cors import CORS
+import itertools
 
 app = Flask(__name__)
 CORS(app)
 
 def is_outerplanar(G):
-    """Verifica si un grafo es outerplanar."""
-    try:
-        # Un grafo es outerplanar si y solo si no contiene un K4 o K2,3 como subgrafo menor
-        if not nx.is_connected(G):
-            # Si no es conexo, verificamos cada componente
-            return all(is_outerplanar(G.subgraph(c)) for c in nx.connected_components(G))
+    """
+    Verifica si un grafo es outerplanar usando múltiples heurísticas.
+    Devuelve True si es outerplanar o si no se puede determinar con certeza.
+    """
+    # Casos triviales
+    if len(G.nodes()) <= 2:
+        return True
         
-        # Primero verificamos si es un árbol (los árboles son outerplanar)
-        if nx.is_tree(G):
-            return True
-            
-        # Verificamos si el grafo es planar
-        if not nx.check_planarity(G)[0]:
-            return False
-            
-        # Verificamos si es un grafo de bloque con una sola cara exterior
-        # Esto es una simplificación, en la práctica necesitaríamos un algoritmo más robusto
-        # pero para propósitos educativos puede servir
-        embedding = nx.planar_layout(G)
-        outer_face_nodes = set()
-        
-        # En un grafo outerplanar, todos los nodos deben estar en la cara exterior
-        # Esto es una aproximación simplificada
-        for node in G.nodes():
-            neighbors = list(G.neighbors(node))
-            if len(neighbors) <= 2:
-                outer_face_nodes.add(node)
-                
-        # Si todos los nodos están en la "cara exterior" (según nuestra simplificación)
-        return len(outer_face_nodes) == len(G.nodes())
-        
-    except Exception as e:
-        print(f"Error verificando outerplanaridad: {e}")
-        return False
-
-def compute_mis_outerplanar(G):
-    if len(G.nodes()) == 0:
-        return []
-
+    # Los árboles son outerplanar
     if nx.is_tree(G):
-        return compute_mis_tree(G)
-
-    cycle_basis = nx.cycle_basis(G)
-    if not cycle_basis:
-        return compute_mis_tree(G)
-
-    cycle = cycle_basis[0]
-    v = cycle[0]
-
-    G1 = G.copy()
-    G1.remove_node(v)
-    mis_without_v = compute_mis_outerplanar(G1)
-
-    G2 = G.copy()
-    neighbors = list(G.neighbors(v)) + [v]
-    G2.remove_nodes_from(neighbors)
-    mis_with_v = [v] + compute_mis_outerplanar(G2)
-
-    return max(mis_without_v, mis_with_v, key=len)
+        return True
+        
+    # Grafos no conexos: todos los componentes deben ser outerplanar
+    if not nx.is_connected(G):
+        return all(is_outerplanar(G.subgraph(c)) for c in nx.connected_components(G))
+    
+    # Debe ser planar primero
+    if not nx.is_planar(G):
+        return False
+    
+    # Verificación de K4 y K2,3 como subgrafos menores
+    def has_K4():
+        for nodes in itertools.combinations(G.nodes(), 4):
+            subgraph = G.subgraph(nodes)
+            if len(subgraph.edges()) >= 5:  # K4 tiene 6 aristas
+                return True
+        return False
+        
+    def has_K23():
+        for pair in itertools.combinations(G.nodes(), 2):
+            others = set(G.nodes()) - set(pair)
+            for triple in itertools.combinations(others, 3):
+                subgraph = G.subgraph(pair + triple)
+                edges = [1 for e in subgraph.edges() if e[0] in pair and e[1] in triple]
+                if len(edges) >= 6:  # K2,3 completo
+                    return True
+        return False
+    
+    if has_K4() or has_K23():
+        return False
+    
+    # Heurística: grafos outerplanar maximales tienen 2n-3 aristas
+    max_edges = 2 * len(G.nodes()) - 3
+    if len(G.edges()) > max_edges:
+        return False
+    
+    # Otra heurística: debe tener al menos 2 nodos con grado <= 2
+    low_degree_nodes = [n for n in G.nodes() if G.degree(n) <= 2]
+    if len(low_degree_nodes) < 2:
+        return False
+    
+    # Si pasó todas las verificaciones, asumimos que es outerplanar
+    return True
 
 def compute_mis_tree(G):
+    """Calcula el MIS para un árbol usando programación dinámica."""
     if len(G.nodes()) == 0:
         return []
 
@@ -75,6 +71,7 @@ def compute_mis_tree(G):
     visited = set()
     stack = [root]
 
+    # Construir estructura padre-hijo
     while stack:
         u = stack.pop()
         if u not in visited:
@@ -84,6 +81,7 @@ def compute_mis_tree(G):
                     parent[v] = u
                     stack.append(v)
 
+    # Procesar en postorden
     post_order = list(nx.dfs_postorder_nodes(G, root))
     dp_include = {}
     dp_exclude = {}
@@ -95,6 +93,7 @@ def compute_mis_tree(G):
         dp_include[u] = include_u
         dp_exclude[u] = exclude_u
 
+    # Reconstruir la solución
     mis = []
     stack = [(root, dp_include[root] > dp_exclude[root])]
     while stack:
@@ -110,34 +109,70 @@ def compute_mis_tree(G):
                     stack.append((v, dp_include[v] > dp_exclude[v]))
     return mis
 
+def compute_mis_outerplanar(G):
+    """Calcula el MIS para grafos outerplanar."""
+    if len(G.nodes()) == 0:
+        return []
+        
+    # Si es un árbol, usar el algoritmo optimizado
+    if nx.is_tree(G):
+        return compute_mis_tree(G)
+    
+    # Encontrar un ciclo base
+    try:
+        cycle = nx.cycle_basis(G)[0]
+    except IndexError:
+        return compute_mis_tree(G)
+    
+    # Seleccionar un nodo del ciclo
+    v = cycle[0]
+    
+    # Caso 1: No incluir v
+    G1 = G.copy()
+    G1.remove_node(v)
+    mis_without_v = compute_mis_outerplanar(G1)
+    
+    # Caso 2: Incluir v (excluir sus vecinos)
+    G2 = G.copy()
+    neighbors = list(G.neighbors(v)) + [v]
+    G2.remove_nodes_from(neighbors)
+    mis_with_v = [v] + compute_mis_outerplanar(G2)
+    
+    # Devolver el conjunto más grande
+    return max(mis_without_v, mis_with_v, key=len)
+
 @app.route('/compute_mis', methods=['POST'])
 def compute_mis():
-    data = request.get_json()
-    nodes = data.get('nodes', [])
-    edges = data.get('edges', [])
-
-    G = nx.Graph()
-    G.add_nodes_from(nodes)
-    G.add_edges_from(edges)
-
-    # Verificar si el grafo es outerplanar
-    if not is_outerplanar(G):
-        return jsonify({
-            'error': 'El grafo no es outerplanar. El algoritmo solo funciona con grafos outerplanar.',
-            'is_outerplanar': False
-        }), 400
-
+    """Endpoint principal para calcular el MIS."""
     try:
+        data = request.get_json()
+        nodes = data.get('nodes', [])
+        edges = data.get('edges', [])
+        
+        if not nodes:
+            return jsonify({'error': 'El grafo no tiene nodos'}), 400
+            
+        G = nx.Graph()
+        G.add_nodes_from(nodes)
+        G.add_edges_from(edges)
+        
+        # Verificar outerplanaridad
+        is_op = is_outerplanar(G)
+        
+        # Calcular MIS incluso si no es outerplanar (con advertencia)
         mis = compute_mis_outerplanar(G)
+        
         return jsonify({
             'mis': mis,
-            'is_outerplanar': True
+            'is_outerplanar': is_op,
+            'warning': None if is_op else "El grafo puede no ser outerplanar, los resultados podrían no ser óptimos"
         })
+        
     except Exception as e:
         return jsonify({
-            'error': f'Error al calcular MIS: {str(e)}',
+            'error': f'Error al procesar el grafo: {str(e)}',
             'is_outerplanar': False
         }), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(host='0.0.0.0', port=10000, debug=True)
