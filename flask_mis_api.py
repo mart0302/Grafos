@@ -76,11 +76,13 @@ def compute_mis():
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
+    # Validación outerplanar corregida
     if not nx.check_planarity(G)[0] or not nx.is_outerplanar(G):
-    return jsonify({'error': 'El grafo no es outerplanar'}), 400
+        return jsonify({'error': 'El grafo no es outerplanar'}), 400
 
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
+
 
 
 if __name__ == '__main__':
