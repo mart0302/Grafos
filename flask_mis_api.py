@@ -5,8 +5,35 @@ import networkx as nx
 app = Flask(__name__)
 CORS(app)
 
+def is_outerplanar_by_definition(G):
+    """Verifica outerplanaridad sin usar is_outerplanar ni has_minor."""
+    n = len(G.nodes())
+    m = len(G.edges())
+
+    if n < 3:
+        return True  # grafos de 0,1,2 nodos son outerplanar por definición
+
+    # Regla básica: todo grafo outerplanar es planar y tiene a lo más 2n - 3 aristas
+    is_planar, _ = nx.check_planarity(G)
+    if not is_planar or m > (2 * n - 3):
+        return False
+
+    # Además, no debe contener K₄ ni K₂,₃ como subgrafo
+    K4 = nx.complete_graph(4)
+    K23 = nx.complete_bipartite_graph(2, 3)
+
+    def contains_subgraph(H):
+        GM = nx.algorithms.isomorphism.GraphMatcher(G, H)
+        return GM.subgraph_is_isomorphic()
+
+    if contains_subgraph(K4) or contains_subgraph(K23):
+        return False
+
+    return True
+
 def compute_mis_outerplanar(G):
     """Calcula el MIS para grafos outerplanar."""
+
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
@@ -80,15 +107,15 @@ def compute_mis():
     G.add_edges_from(edges)
 
     try:
-        is_planar, embedding = nx.check_planarity(G)
-        if not is_planar or not embedding.is_outerplanar():
+        if not is_outerplanar_by_definition(G):
             return jsonify({'error': 'El grafo no es outerplanar'}), 400
     except Exception as e:
-        print("Error al validar outerplanaridad:", str(e))
+        print("Error validando outerplanaridad:", str(e))
         return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
 
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
