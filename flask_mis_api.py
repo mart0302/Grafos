@@ -89,23 +89,19 @@ def compute_mis():
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
-    # Validar outerplanaridad sin .faces()
-    is_planar, _ = nx.check_planarity(G)
+    # Validar outerplanaridad con try-catch para estabilidad
+    try:
+        is_planar, embedding = nx.check_planarity(G)
+        is_outerplanar = embedding.is_outerplanar()
+    except Exception as e:
+        print("Error al validar outerplanaridad:", str(e))
+        return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
 
-    def is_outerplanar(G):
-        try:
-            from networkx.algorithms.minors import has_minor
-            return is_planar and not has_minor(G, nx.complete_graph(4)) and not has_minor(G, nx.complete_bipartite_graph(2, 3))
-        except ImportError:
-            return is_planar
-
-    if not is_outerplanar(G):
+    if not is_outerplanar:
         return jsonify({'error': 'El grafo no es outerplanar'}), 400
 
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
-
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
