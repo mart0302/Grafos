@@ -6,7 +6,6 @@ app = Flask(__name__)
 CORS(app)
 
 def compute_mis_outerplanar(G):
-    """Calcula el MIS usando programación dinámica o recursión."""
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
@@ -14,7 +13,6 @@ def compute_mis_outerplanar(G):
         parent = {root: None}
         visited = set()
         stack = [root]
-
         while stack:
             u = stack.pop()
             if u not in visited:
@@ -23,16 +21,13 @@ def compute_mis_outerplanar(G):
                     if v not in visited and v != parent[u]:
                         parent[v] = u
                         stack.append(v)
-
         post_order = list(nx.dfs_postorder_nodes(G, root))
         dp_include = {}
         dp_exclude = {}
-
         for u in post_order:
             children = [v for v in G.neighbors(u) if v != parent[u]]
             dp_include[u] = 1 + sum(dp_exclude.get(v, 0) for v in children)
             dp_exclude[u] = sum(max(dp_include.get(v, 0), dp_exclude.get(v, 0)) for v in children)
-
         mis = []
         stack = [(root, dp_include[root] > dp_exclude[root])]
         while stack:
@@ -52,11 +47,9 @@ def compute_mis_outerplanar(G):
         return []
     if nx.is_tree(G):
         return compute_mis_tree(G)
-
     cycle_basis = nx.cycle_basis(G)
     if not cycle_basis:
         return compute_mis_tree(G)
-
     cycle = cycle_basis[0]
     v = cycle[0]
     G1 = G.copy()
@@ -68,14 +61,14 @@ def compute_mis_outerplanar(G):
     return max(mis1, mis2, key=len)
 
 def is_outerplanar_graph(G):
-    """Determina si un grafo es outerplanar usando métodos seguros."""
     try:
-        is_planar, embedding = nx.check_planarity(G)
-        if is_planar and hasattr(embedding, "is_outerplanar"):
-            return embedding.is_outerplanar()
-        return False
+        is_planar, _ = nx.check_planarity(G)
+        if not is_planar:
+            return False
+        # Heurística para permitir outerplanaridad básica
+        return len(G.edges()) <= (2 * len(G.nodes()) - 3)
     except Exception as e:
-        print("Error durante validación outerplanar:", e)
+        print("Error al validar outerplanaridad:", e)
         return False
 
 @app.route('/compute_mis', methods=['POST'])
