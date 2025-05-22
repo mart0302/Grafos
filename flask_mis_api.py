@@ -4,21 +4,13 @@ import networkx as nx
 from networkx.algorithms.minors import has_minor
 
 app = Flask(__name__)
-CORS(app)  # Permite llamadas desde el frontend (JavaScript externo)
+CORS(app)  # Permite llamadas desde el frontend
 
-# Validación de outerplanaridad usando teoría de menores
-def is_outerplanar_graph(G):
-    # Un grafo es outerplanar si es planar y no tiene como menor a K4 ni a K2,3
-    return nx.check_planarity(G)[0] and \
-           not has_minor(G, nx.complete_graph(4)) and \
-           not has_minor(G, nx.complete_bipartite_graph(2, 3))
-
-# Algoritmo para calcular el MIS en grafos outerplanar
 def compute_mis_outerplanar(G):
+    """Calcula el MIS usando programación dinámica en árboles o recursión en outerplanar."""
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
-
         root = next(iter(G.nodes()))
         parent = {root: None}
         visited = set()
@@ -44,7 +36,6 @@ def compute_mis_outerplanar(G):
 
         mis = []
         stack = [(root, dp_include[root] > dp_exclude[root])]
-
         while stack:
             u, take = stack.pop()
             if take:
@@ -56,33 +47,44 @@ def compute_mis_outerplanar(G):
                 for v in G.neighbors(u):
                     if v != parent.get(u, None):
                         stack.append((v, dp_include[v] > dp_exclude[v]))
-
         return mis
 
     if len(G.nodes()) == 0:
         return []
-
     if nx.is_tree(G):
         return compute_mis_tree(G)
-
     cycle_basis = nx.cycle_basis(G)
     if not cycle_basis:
         return compute_mis_tree(G)
-
     cycle = cycle_basis[0]
     v = cycle[0]
-
     G1 = G.copy()
     G1.remove_node(v)
     mis1 = compute_mis_outerplanar(G1)
-
     G2 = G.copy()
     G2.remove_nodes_from([v] + list(G.neighbors(v)))
     mis2 = [v] + compute_mis_outerplanar(G2)
-
     return max(mis1, mis2, key=len)
 
-# Ruta del endpoint que recibe el grafo y regresa el MIS
+def is_outerplanar_graph(G):
+    """Determina si el grafo es outerplanar con tolerancia a errores."""
+    try:
+        is_planar, _ = nx.check_planarity(G)
+    except Exception:
+        return False
+
+    try:
+        has_k4 = has_minor(G, nx.complete_graph(4))
+    except Exception:
+        has_k4 = True
+
+    try:
+        has_k23 = has_minor(G, nx.complete_bipartite_graph(2, 3))
+    except Exception:
+        has_k23 = True
+
+    return is_planar and not has_k4 and not has_k23
+
 @app.route('/compute_mis', methods=['POST'])
 def compute_mis():
     data = request.get_json()
@@ -93,15 +95,12 @@ def compute_mis():
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
-    if not is_outerplanar_graph(G):
-        return jsonify({'error': 'El grafo no es outerplanar'}), 400
-
-    mis = compute_mis_outerplanar(G)
-    return jsonify({'mis': mis})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
-
+    try:
+        if not is_outerplanar_graph(G):
+            return jsonify({'error': 'El grafo no es outerplanar'}), 400
+    except Exception as e:
+        print("Error validando outerplanaridad:", str(e))
+        return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
 
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
