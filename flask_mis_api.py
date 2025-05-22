@@ -79,8 +79,9 @@ def compute_mis():
     G.add_edges_from(edges)
 
     try:
-        _, embedding = nx.check_planarity(G)
-        if not embedding.is_outerplanar():
+        # Validación outerplanar real con embebido
+        is_planar, embedding = nx.check_planarity(G)
+        if not is_planar or not embedding.is_outerplanar():
             return jsonify({'error': 'El grafo no es outerplanar'}), 400
     except Exception as e:
         print("Error al validar outerplanaridad:", str(e))
@@ -91,4 +92,3 @@ def compute_mis():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
-
