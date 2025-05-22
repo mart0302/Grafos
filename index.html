@@ -727,13 +727,10 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
-       .then(async res => {
-  if (!res.ok) {
-    const errorData = await res.json();
-    throw new Error(errorData.error || 'Error en la respuesta del servidor');
-  }
-  return res.json();
-})
+        .then(res => {
+          if (!res.ok) throw new Error('Error en la respuesta del servidor');
+          return res.json();
+        })
         .then(data => {
           if (!data.mis) throw new Error('Formato de respuesta inválido');
           
