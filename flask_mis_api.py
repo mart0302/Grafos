@@ -1,39 +1,33 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import networkx as nx
+import itertools
 
 app = Flask(__name__)
 CORS(app)
 
-def is_outerplanar_by_definition(G):
-    """Verifica outerplanaridad sin usar is_outerplanar ni has_minor."""
-    n = len(G.nodes())
-    m = len(G.edges())
-
-    if n < 3:
-        return True  # grafos de 0,1,2 nodos son outerplanar por definición
-
-    # Regla básica: todo grafo outerplanar es planar y tiene a lo más 2n - 3 aristas
+def is_outerplanar_graph(G):
+    """Valida outerplanaridad real: planar, sin K₄ ni K₂,₃ embebidos."""
     is_planar, _ = nx.check_planarity(G)
-    if not is_planar or m > (2 * n - 3):
+    if not is_planar:
         return False
 
-    # Además, no debe contener K₄ ni K₂,₃ como subgrafo
-    K4 = nx.complete_graph(4)
-    K23 = nx.complete_bipartite_graph(2, 3)
+    # Verificar todos los subconjuntos de 4 nodos para K4
+    for nodes in itertools.combinations(G.nodes(), 4):
+        subgraph = G.subgraph(nodes)
+        if nx.is_isomorphic(subgraph, nx.complete_graph(4)):
+            return False
 
-    def contains_subgraph(H):
-        GM = nx.algorithms.isomorphism.GraphMatcher(G, H)
-        return GM.subgraph_is_isomorphic()
-
-    if contains_subgraph(K4) or contains_subgraph(K23):
-        return False
+    # Verificar todos los subconjuntos de 5 nodos para K2,3
+    for nodes in itertools.combinations(G.nodes(), 5):
+        subgraph = G.subgraph(nodes)
+        if nx.is_isomorphic(subgraph, nx.complete_bipartite_graph(2, 3)):
+            return False
 
     return True
 
-def compute_mis_outerplanar(G):
-    """Calcula el MIS para grafos outerplanar."""
 
+def compute_mis_outerplanar(G):
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
@@ -41,7 +35,6 @@ def compute_mis_outerplanar(G):
         parent = {root: None}
         visited = set()
         stack = [root]
-
         while stack:
             u = stack.pop()
             if u not in visited:
@@ -50,16 +43,13 @@ def compute_mis_outerplanar(G):
                     if v not in visited and v != parent[u]:
                         parent[v] = u
                         stack.append(v)
-
         post_order = list(nx.dfs_postorder_nodes(G, root))
         dp_include = {}
         dp_exclude = {}
-
         for u in post_order:
             children = [v for v in G.neighbors(u) if v != parent[u]]
             dp_include[u] = 1 + sum(dp_exclude.get(v, 0) for v in children)
             dp_exclude[u] = sum(max(dp_include.get(v, 0), dp_exclude.get(v, 0)) for v in children)
-
         mis = []
         stack = [(root, dp_include[root] > dp_exclude[root])]
         while stack:
@@ -77,14 +67,11 @@ def compute_mis_outerplanar(G):
 
     if len(G.nodes()) == 0:
         return []
-
     if nx.is_tree(G):
         return compute_mis_tree(G)
-
     cycle_basis = nx.cycle_basis(G)
     if not cycle_basis:
         return compute_mis_tree(G)
-
     cycle = cycle_basis[0]
     v = cycle[0]
     G1 = G.copy()
@@ -107,7 +94,7 @@ def compute_mis():
     G.add_edges_from(edges)
 
     try:
-        if not is_outerplanar_by_definition(G):
+        if not is_outerplanar_graph(G):
             return jsonify({'error': 'El grafo no es outerplanar'}), 400
     except Exception as e:
         print("Error validando outerplanaridad:", str(e))
