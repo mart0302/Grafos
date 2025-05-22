@@ -76,6 +76,10 @@ def compute_mis():
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
+    is_planar, embedding = nx.check_planarity(G)
+    if not is_planar or len(embedding.faces()) > 1:
+        return jsonify({'error': 'El grafo no es outerplanar'}), 400
+
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
 
