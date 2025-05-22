@@ -1,13 +1,20 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import networkx as nx
+from networkx.algorithms.minors import has_minor
 
 app = Flask(__name__)
 CORS(app)  # Permite llamadas desde el frontend (JavaScript externo)
 
-def compute_mis_outerplanar(G):
-    """Calcula el MIS usando programación dinámica en árboles o recursión en grafos outerplanar."""
+# Validación de outerplanaridad usando teoría de menores
+def is_outerplanar_graph(G):
+    # Un grafo es outerplanar si es planar y no tiene como menor a K4 ni a K2,3
+    return nx.check_planarity(G)[0] and \
+           not has_minor(G, nx.complete_graph(4)) and \
+           not has_minor(G, nx.complete_bipartite_graph(2, 3))
 
+# Algoritmo para calcular el MIS en grafos outerplanar
+def compute_mis_outerplanar(G):
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
@@ -52,15 +59,12 @@ def compute_mis_outerplanar(G):
 
         return mis
 
-    # Caso base: grafo vacío
     if len(G.nodes()) == 0:
         return []
 
-    # Si es árbol → caso óptimo
     if nx.is_tree(G):
         return compute_mis_tree(G)
 
-    # Si no es árbol, aplicar reducción por ciclos
     cycle_basis = nx.cycle_basis(G)
     if not cycle_basis:
         return compute_mis_tree(G)
@@ -78,7 +82,7 @@ def compute_mis_outerplanar(G):
 
     return max(mis1, mis2, key=len)
 
-
+# Ruta del endpoint que recibe el grafo y regresa el MIS
 @app.route('/compute_mis', methods=['POST'])
 def compute_mis():
     data = request.get_json()
@@ -89,16 +93,15 @@ def compute_mis():
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
-    # Validar outerplanaridad con try-catch para estabilidad
-    try:
-        is_planar, embedding = nx.check_planarity(G)
-        is_outerplanar = embedding.is_outerplanar()
-    except Exception as e:
-        print("Error al validar outerplanaridad:", str(e))
-        return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
-
-    if not is_outerplanar:
+    if not is_outerplanar_graph(G):
         return jsonify({'error': 'El grafo no es outerplanar'}), 400
+
+    mis = compute_mis_outerplanar(G)
+    return jsonify({'mis': mis})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)
+
 
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
