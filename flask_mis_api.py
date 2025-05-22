@@ -3,25 +3,9 @@ from flask_cors import CORS
 import networkx as nx
 
 app = Flask(__name__)
-CORS(app)  # Permite llamadas desde el frontend
+CORS(app)  # Permite llamadas desde el frontend (JavaScript externo)
 
-# ------------------------------
-# Verificación segura de outerplanaridad
-# ------------------------------
-def is_outerplanar(G):
-    """Verifica si un grafo es outerplanar:
-    - debe ser planar
-    - debe cumplir |E| <= 2|V| - 3
-    """
-    try:
-        is_planar, _ = nx.check_planarity(G)
-        return is_planar and G.number_of_edges() <= 2 * G.number_of_nodes() - 3
-    except Exception:
-        return False
-
-# ------------------------------
-# Algoritmo para calcular el MIS
-# ------------------------------
+# --- Algoritmo para calcular MIS (Máximo Conjunto Independiente) en outerplanar ---
 def compute_mis_outerplanar(G):
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
@@ -67,10 +51,8 @@ def compute_mis_outerplanar(G):
 
     if len(G.nodes()) == 0:
         return []
-
     if nx.is_tree(G):
         return compute_mis_tree(G)
-
     cycle_basis = nx.cycle_basis(G)
     if not cycle_basis:
         return compute_mis_tree(G)
@@ -85,9 +67,7 @@ def compute_mis_outerplanar(G):
     mis2 = [v] + compute_mis_outerplanar(G2)
     return max(mis1, mis2, key=len)
 
-# ------------------------------
-# Ruta principal de la API
-# ------------------------------
+# --- Ruta principal para calcular el MIS ---
 @app.route('/compute_mis', methods=['POST'])
 def compute_mis():
     data = request.get_json()
@@ -99,15 +79,16 @@ def compute_mis():
     G.add_edges_from(edges)
 
     try:
-        if not is_outerplanar(G):
+        _, embedding = nx.check_planarity(G)
+        if not embedding.is_outerplanar():
             return jsonify({'error': 'El grafo no es outerplanar'}), 400
     except Exception as e:
-        print("Error validando outerplanaridad:", str(e))
+        print("Error al validar outerplanaridad:", str(e))
         return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
 
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
 
-# ------------------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
+
