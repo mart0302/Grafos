@@ -704,88 +704,83 @@
     }
     
     // Enviar grafo al backend para calcular MIS
-    function sendGraphToBackend() {
-      const misBtn = document.getElementById("misBtn");
-      const loading = document.getElementById("loading");
-      misBtn.disabled = true;
-      loading.style.display = 'block';
-      
-      // Resetear colores de nodos
-      nodes.forEach(node => {
-        nodes.update({ id: node.id, color: '#97C2FC' });
+function sendGraphToBackend() {
+  const misBtn = document.getElementById("misBtn");
+  const loading = document.getElementById("loading");
+  misBtn.disabled = true;
+  loading.style.display = 'block';
+
+  // Resetear colores de nodos
+  nodes.forEach(node => {
+    nodes.update({ id: node.id, color: '#97C2FC' });
+  });
+
+  const payload = {
+    nodes: nodes.getIds(),
+    edges: edges.get().map(e => [e.from, e.to])
+  };
+
+  setTimeout(() => {
+    fetch('https://grafos-18xd.onrender.com/compute_mis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(async res => {
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Error en la respuesta del servidor');
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data.mis) throw new Error('Formato de respuesta inválido');
+
+      const mis = data.mis;
+      lastMIS = mis;
+
+      mis.forEach((nodeId, index) => {
+        setTimeout(() => {
+          nodes.update({
+            id: nodeId,
+            color: '#FF6B6B',
+            shape: 'star',
+            size: 30
+          });
+        }, index * 100);
       });
 
-      const payload = {
-        nodes: nodes.getIds(),
-        edges: edges.get().map(e => [e.from, e.to])
-      };
+      const misSize = mis.length;
+      const totalNodes = nodes.length;
+      const percentage = Math.round((misSize / totalNodes) * 100);
 
-      // Simular retraso de red para demostración (eliminar en producción)
-      setTimeout(() => {
-        fetch('https://grafos-18xd.onrender.com/compute_mis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-        .then(res => {
-          if (!res.ok) throw new Error('Error en la respuesta del servidor');
-          return res.json();
-        })
-        .then(data => {
-          if (!data.mis) throw new Error('Formato de respuesta inválido');
-          
-          const mis = data.mis;
-          lastMIS = mis;
-          
-          // Resaltar nodos del MIS con animación
-          mis.forEach((nodeId, index) => {
-            setTimeout(() => {
-              nodes.update({ 
-                id: nodeId, 
-                color: '#FF6B6B',
-                shape: 'star',
-                size: 30
-              });
-              
-              // Crear efecto de confeti para el último nodo
-              if (index === mis.length - 1) {
-                createConfettiEffect(nodeId);
-              }
-            }, index * 100);
-          });
-          
-          const misSize = mis.length;
-          const totalNodes = nodes.length;
-          const percentage = Math.round((misSize / totalNodes) * 100);
-          
-          document.getElementById("misResult").innerHTML = `
-            <i class="fas fa-check-circle" style="color: var(--color-exito)"></i> 
-            MIS calculado con ${misSize} nodos (${percentage}% del grafo): [${mis.join(', ')}]
-          `;
-          
-          document.getElementById("misExplanation").innerHTML = `
-            <p>El <strong>Máximo Conjunto Independiente</strong> (MIS) se refiere al grupo más grande posible de nodos que <strong>no están conectados entre sí</strong>.</p>
-            <p>En este grafo, el MIS representa el <strong>${percentage}%</strong> de todos los nodos. Esto significa que puedes seleccionar hasta <strong>${misSize}</strong> elementos sin que ninguno esté relacionado directamente.</p>
-            <p><strong>Aplicación práctica:</strong> Imagina que cada nodo es una estación de radio. El MIS te dice cuántas estaciones puedes tener activas simultáneamente sin interferencias.</p>
-          `;
-          document.getElementById("misExplanation").style.display = 'block';
-          
-          // Actualizar estadísticas
-          updateStats();
-        })
-        .catch(err => {
-          console.error('Error:', err);
-          document.getElementById("misResult").innerHTML = `
-            <i class="fas fa-exclamation-triangle" style="color: var(--color-error)"></i> 
-            Error al calcular MIS: ${err.message}
-          `;
-        })
-        .finally(() => {
-          misBtn.disabled = false;
-          loading.style.display = 'none';
-        });
-      }, 500); // Eliminar este setTimeout en producción
-    }
+      document.getElementById("misResult").innerHTML = `
+        <i class="fas fa-check-circle" style="color: var(--color-exito)"></i> 
+        MIS calculado con ${misSize} nodos (${percentage}% del grafo): [${mis.join(', ')}]
+      `;
+
+      document.getElementById("misExplanation").innerHTML = `
+        <p>El <strong>Máximo Conjunto Independiente</strong> (MIS) se refiere al grupo más grande posible de nodos que <strong>no están conectados entre sí</strong>.</p>
+        <p>En este grafo, el MIS representa el <strong>${percentage}%</strong> de todos los nodos. Esto significa que puedes seleccionar hasta <strong>${misSize}</strong> elementos sin que ninguno esté relacionado directamente.</p>
+        <p><strong>Aplicación práctica:</strong> Imagina que cada nodo es una estación de radio. El MIS te dice cuántas estaciones puedes tener activas simultáneamente sin interferencias.</p>
+      `;
+      document.getElementById("misExplanation").style.display = 'block';
+      updateStats();
+    })
+    .catch(err => {
+      console.error('Error:', err);
+      lastMIS = []; // Limpia el estado si hay error
+      document.getElementById("misResult").innerHTML = `
+        <i class="fas fa-exclamation-triangle" style="color: var(--color-error)"></i> 
+        Error al calcular MIS: ${err.message}
+      `;
+    })
+    .finally(() => {
+      misBtn.disabled = false;
+      loading.style.display = 'none';
+    });
+  }, 500); // ← Este es el cierre del setTimeout
+}
     
     // Crear efecto de confeti para celebrar el cálculo del MIS
     function createConfettiEffect(nodeId) {
