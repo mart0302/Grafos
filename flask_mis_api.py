@@ -3,9 +3,9 @@ from flask_cors import CORS
 import networkx as nx
 
 app = Flask(__name__)
-CORS(app)  # Permite llamadas desde el frontend (JavaScript externo)
+CORS(app)  
 
-# --- Algoritmo para calcular MIS (Máximo Conjunto Independiente) en outerplanar ---
+# --- Algoritmo para calcular MIS (Máximo Conjunto Independiente) en outerplanar MARTIN OJEDA ---
 def compute_mis_outerplanar(G):
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
