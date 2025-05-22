@@ -80,9 +80,9 @@ def compute_mis():
 
     try:
         # Validación outerplanar real con embebido
-        is_planar, embedding = nx.check_planarity(G)
-        if not is_planar or not embedding.is_outerplanar():
-            return jsonify({'error': 'El grafo no es outerplanar'}), 400
+        _, embedding = nx.check_planarity(G)
+if not embedding.is_outerplanar():
+    return jsonify({'error': 'El grafo no es outerplanar'}), 400
     except Exception as e:
         print("Error al validar outerplanaridad:", str(e))
         return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
