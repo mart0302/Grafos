@@ -1,13 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import networkx as nx
-from networkx.algorithms.minors import has_minor
 
 app = Flask(__name__)
-CORS(app)  # Permite llamadas desde el frontend
+CORS(app)
 
 def compute_mis_outerplanar(G):
-    """Calcula el MIS usando programación dinámica en árboles o recursión en outerplanar."""
+    """Calcula el MIS usando programación dinámica o recursión."""
     def compute_mis_tree(G):
         if len(G.nodes()) == 0:
             return []
@@ -53,9 +52,11 @@ def compute_mis_outerplanar(G):
         return []
     if nx.is_tree(G):
         return compute_mis_tree(G)
+
     cycle_basis = nx.cycle_basis(G)
     if not cycle_basis:
         return compute_mis_tree(G)
+
     cycle = cycle_basis[0]
     v = cycle[0]
     G1 = G.copy()
@@ -67,23 +68,15 @@ def compute_mis_outerplanar(G):
     return max(mis1, mis2, key=len)
 
 def is_outerplanar_graph(G):
-    """Determina si el grafo es outerplanar con tolerancia a errores."""
+    """Determina si un grafo es outerplanar usando métodos seguros."""
     try:
-        is_planar, _ = nx.check_planarity(G)
-    except Exception:
+        is_planar, embedding = nx.check_planarity(G)
+        if is_planar and hasattr(embedding, "is_outerplanar"):
+            return embedding.is_outerplanar()
         return False
-
-    try:
-        has_k4 = has_minor(G, nx.complete_graph(4))
-    except Exception:
-        has_k4 = True
-
-    try:
-        has_k23 = has_minor(G, nx.complete_bipartite_graph(2, 3))
-    except Exception:
-        has_k23 = True
-
-    return is_planar and not has_k4 and not has_k23
+    except Exception as e:
+        print("Error durante validación outerplanar:", e)
+        return False
 
 @app.route('/compute_mis', methods=['POST'])
 def compute_mis():
@@ -95,12 +88,8 @@ def compute_mis():
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
 
-    try:
-        if not is_outerplanar_graph(G):
-            return jsonify({'error': 'El grafo no es outerplanar'}), 400
-    except Exception as e:
-        print("Error validando outerplanaridad:", str(e))
-        return jsonify({'error': 'Error interno al validar outerplanaridad'}), 500
+    if not is_outerplanar_graph(G):
+        return jsonify({'error': 'El grafo no es outerplanar'}), 400
 
     mis = compute_mis_outerplanar(G)
     return jsonify({'mis': mis})
